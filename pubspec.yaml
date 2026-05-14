@@ -1,5 +1,5 @@
 name: bookshelf
-description: App Flutter estatico de agregador de noticias para faculdade.
+description: BookShelf, app Flutter estatico de agregador de noticias para faculdade.
 publish_to: 'none'
 
 version: 1.0.0+1
