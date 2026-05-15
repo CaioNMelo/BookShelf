@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'screens/home_screen.dart';
 
-void main() {
+Future<void> main() async {
+  // Garante que o Flutter esteja pronto antes de carregar arquivos/assets.
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Carrega as variaveis do arquivo .env antes de iniciar o app.
+  await dotenv.load(fileName: '.env');
+
   runApp(const BookShelfApp());
 }
 

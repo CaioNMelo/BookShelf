@@ -9,6 +9,9 @@ build/
 .idea/
 .vscode/
 
+# Chaves e configuracoes secretas.
+.env
+
 # Arquivos do sistema operacional.
 .DS_Store
 Thumbs.db
