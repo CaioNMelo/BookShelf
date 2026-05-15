@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../models/article.dart';
+import '../services/news_service.dart';
 import '../widgets/news_card.dart';
+import 'article_screen.dart';
 
 // Tela principal do aplicativo.
 class HomeScreen extends StatefulWidget {
@@ -18,6 +20,15 @@ class _HomeScreenState extends State<HomeScreen> {
   // Guarda a categoria escolhida nos radio buttons.
   String selectedCategory = 'Geral';
 
+  // Controla o texto digitado no campo de busca.
+  final TextEditingController _searchController = TextEditingController();
+
+  // Instancia do servico que busca noticias na API.
+  final NewsService _newsService = NewsService();
+
+  // Guarda o Future atual. O FutureBuilder reage toda vez que esse valor muda.
+  late Future<List<Article>> _newsFuture;
+
   // Lista de categorias exibidas na tela.
   final List<String> categories = const [
     'Geral',
@@ -28,33 +39,31 @@ class _HomeScreenState extends State<HomeScreen> {
     'Entretenimento',
   ];
 
-  // Lista de noticias falsas para visualizar o layout.
-  final List<Article> articles = [
-    Article(
-      title: 'Nova biblioteca publica incentiva leitura entre estudantes',
-      description: 'Projeto cria espacos de leitura em escolas publicas.',
-      url: 'https://example.com/noticia-1',
-      imageUrl: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f',
-      source: 'Jornal Campus',
-      publishedAt: DateTime(2026, 5, 14, 9, 30),
-    ),
-    Article(
-      title: 'Tecnologia ajuda pesquisadores a organizar acervos digitais',
-      description: 'Ferramentas digitais facilitam buscas em grandes colecoes.',
-      url: 'https://example.com/noticia-2',
-      imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3',
-      source: 'Tech Hoje',
-      publishedAt: DateTime(2026, 5, 14, 11, 15),
-    ),
-    Article(
-      title: 'Feira cultural reune musica, ciencia e exposicoes',
-      description: 'Evento gratuito acontece durante todo o fim de semana.',
-      url: 'https://example.com/noticia-3',
-      imageUrl: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee',
-      source: 'Cultura News',
-      publishedAt: DateTime(2026, 5, 14, 14, 45),
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    // Carrega as noticias assim que a tela abre pela primeira vez.
+    _loadNews();
+  }
+
+  @override
+  void dispose() {
+    // Libera a memoria do controller quando a tela e destruida.
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // Chama a API com os filtros atuais e atualiza o FutureBuilder.
+  // Toda vez que essa funcao e chamada, o FutureBuilder reconstroi a tela.
+  void _loadNews() {
+    setState(() {
+      _newsFuture = _newsService.fetchNews(
+        category: selectedCategory,
+        query: _searchController.text,
+        country: isInternational ? 'us' : 'br',
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,14 +84,30 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           // Campo de busca por texto.
+          // Pressionar Enter/Buscar no teclado dispara a busca na API.
           TextField(
+            controller: _searchController,
             decoration: InputDecoration(
               hintText: 'Buscar noticias',
               prefixIcon: const Icon(Icons.search),
+              // Botao de limpar que aparece quando ha texto no campo.
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        _loadNews();
+                      },
+                    )
+                  : null,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
+            // Busca ao pressionar a tecla de confirmacao do teclado.
+            onSubmitted: (_) => _loadNews(),
+            // Atualiza a tela so para mostrar/esconder o botao X.
+            onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 16),
 
@@ -100,6 +125,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   setState(() {
                     isInternational = value;
                   });
+                  // Recarrega as noticias com o novo pais escolhido.
+                  _loadNews();
                 },
               ),
               const Text(
@@ -132,6 +159,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       setState(() {
                         selectedCategory = value!;
                       });
+                      // Recarrega as noticias com a nova categoria escolhida.
+                      _loadNews();
                     },
                   ),
                   Text(category),
@@ -151,10 +180,93 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
 
-          // Lista de cards com noticias falsas.
-          ...articles.map((article) {
-            return NewsCard(article: article);
-          }),
+          // FutureBuilder "escuta" o _newsFuture e reconstroi esse trecho da
+          // tela automaticamente quando os dados chegam, ha erro ou esta
+          // carregando. E a forma padrao do Flutter de lidar com dados async.
+          FutureBuilder<List<Article>>(
+            future: _newsFuture,
+            builder: (context, snapshot) {
+              // Estado: aguardando a resposta da API.
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 48),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+
+              // Estado: ocorreu algum erro (sem internet, limite de API, etc.).
+              if (snapshot.hasError) {
+                // Remove o prefixo tecnico "Exception: " antes de exibir.
+                final mensagem = snapshot.error
+                    .toString()
+                    .replaceFirst('Exception: ', '');
+
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 48),
+                    child: Column(
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          mensagem,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                        const SizedBox(height: 16),
+                        // Botao para tentar novamente sem precisar reiniciar o app.
+                        ElevatedButton.icon(
+                          onPressed: _loadNews,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Tentar novamente'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              // Estado: dados chegaram, mas a lista esta vazia.
+              final articles = snapshot.data ?? [];
+              if (articles.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 48),
+                    child: Text(
+                      'Nenhuma noticia encontrada.',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ),
+                );
+              }
+
+              // Estado: tudo certo, exibe a lista de cards clicaveis.
+              return Column(
+                children: articles.map((article) {
+                  // GestureDetector transforma o card em algo clicavel.
+                  return GestureDetector(
+                    onTap: () {
+                      // Navega para a tela de leitura passando o artigo
+                      // escolhido pelo usuario.
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ArticleScreen(article: article),
+                        ),
+                      );
+                    },
+                    child: NewsCard(article: article),
+                  );
+                }).toList(),
+              );
+            },
+          ),
         ],
       ),
     );
