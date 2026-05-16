@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/article.dart';
 import '../services/news_service.dart';
+import '../services/preferences_service.dart';
 import '../widgets/news_card.dart';
 import 'article_screen.dart';
 
@@ -26,6 +27,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // Instancia do servico que busca noticias na API.
   final NewsService _newsService = NewsService();
 
+  // Instancia do servico que salva preferencias simples do usuario.
+  final PreferencesService _preferencesService = PreferencesService();
+
   // Guarda o Future atual. O FutureBuilder reage toda vez que esse valor muda.
   late Future<List<Article>> _newsFuture;
 
@@ -42,8 +46,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Carrega as noticias assim que a tela abre pela primeira vez.
-    _loadNews();
+    // Carrega categoria e pais salvos antes de buscar as noticias.
+    _newsFuture = _loadPreferencesAndNews();
   }
 
   @override
@@ -63,6 +67,57 @@ class _HomeScreenState extends State<HomeScreen> {
         country: isInternational ? 'us' : 'br',
       );
     });
+  }
+
+  // Recupera as preferencias salvas em sessoes anteriores.
+  Future<List<Article>> _loadPreferencesAndNews() async {
+    final savedCategory = await _preferencesService.getCategory();
+    final savedCountry = await _preferencesService.getCountry();
+
+    if (!mounted) {
+      return [];
+    }
+
+    setState(() {
+      selectedCategory = savedCategory;
+      isInternational = savedCountry == 'us';
+    });
+
+    return _newsService.fetchNews(
+      category: selectedCategory,
+      query: _searchController.text,
+      country: savedCountry,
+    );
+  }
+
+  // Salva o pais escolhido e recarrega as noticias.
+  Future<void> _changeCountry(bool value) async {
+    final country = value ? 'us' : 'br';
+
+    await _preferencesService.saveCountry(country);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      isInternational = value;
+    });
+    _loadNews();
+  }
+
+  // Salva a categoria escolhida e recarrega as noticias.
+  Future<void> _changeCategory(String category) async {
+    await _preferencesService.saveCategory(category);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      selectedCategory = category;
+    });
+    _loadNews();
   }
 
   @override
@@ -121,13 +176,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               Switch(
                 value: isInternational,
-                onChanged: (value) {
-                  setState(() {
-                    isInternational = value;
-                  });
-                  // Recarrega as noticias com o novo pais escolhido.
-                  _loadNews();
-                },
+                onChanged: _changeCountry,
               ),
               const Text(
                 'Internacional',
@@ -156,11 +205,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     value: category,
                     groupValue: selectedCategory,
                     onChanged: (value) {
-                      setState(() {
-                        selectedCategory = value!;
-                      });
-                      // Recarrega as noticias com a nova categoria escolhida.
-                      _loadNews();
+                      if (value != null) {
+                        _changeCategory(value);
+                      }
                     },
                   ),
                   Text(category),
@@ -199,9 +246,8 @@ class _HomeScreenState extends State<HomeScreen> {
               // Estado: ocorreu algum erro (sem internet, limite de API, etc.).
               if (snapshot.hasError) {
                 // Remove o prefixo tecnico "Exception: " antes de exibir.
-                final mensagem = snapshot.error
-                    .toString()
-                    .replaceFirst('Exception: ', '');
+                final mensagem =
+                    snapshot.error.toString().replaceFirst('Exception: ', '');
 
                 return Center(
                   child: Padding(

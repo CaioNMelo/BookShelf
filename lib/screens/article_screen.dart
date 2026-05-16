@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/article.dart';
+import '../services/database_service.dart';
 
 // Tela de leitura de uma noticia especifica.
 // Recebe um objeto Article vindo da HomeScreen.
@@ -52,6 +53,20 @@ class ArticleScreen extends StatelessWidget {
           ),
         );
       }
+    }
+  }
+
+  // Salva a noticia no banco local para ler depois.
+  Future<void> _saveArticle(BuildContext context) async {
+    await DatabaseService.instance.saveArticle(article);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Notícia salva!'),
+          duration: Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -166,8 +181,7 @@ class ArticleScreen extends StatelessWidget {
                       icon: const Icon(Icons.open_in_browser),
                       label: const Text('Ler materia completa'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            Theme.of(context).colorScheme.primary,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         textStyle: const TextStyle(fontSize: 16),
@@ -176,19 +190,11 @@ class ArticleScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  // Botao secundario: salvar para ler depois.
-                  // Por enquanto so exibe um SnackBar de confirmacao.
+                  // Botao secundario: salva a noticia no SQLite.
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Noticia salva para ler depois!'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      },
+                      onPressed: () => _saveArticle(context),
                       icon: const Icon(Icons.bookmark_add_outlined),
                       label: const Text('Salvar para ler depois'),
                       style: OutlinedButton.styleFrom(
