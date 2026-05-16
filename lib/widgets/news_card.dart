@@ -1,15 +1,43 @@
 import 'package:flutter/material.dart';
 
 import '../models/article.dart';
+import '../services/database_service.dart';
 
 // Widget reutilizavel para mostrar uma noticia em formato de card.
 class NewsCard extends StatelessWidget {
   final Article article;
+  final bool showSaveButton;
 
   const NewsCard({
     super.key,
     required this.article,
+    this.showSaveButton = true,
   });
+
+  // Salva a noticia diretamente pela lista principal.
+  Future<void> _saveArticle(BuildContext context) async {
+    try {
+      await DatabaseService.instance.saveArticle(article);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Notícia salva!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível salvar a notícia.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,14 +93,17 @@ class NewsCard extends StatelessWidget {
                 Row(
                   children: [
                     // Fonte da noticia.
-                    Text(
-                      article.source,
-                      style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontWeight: FontWeight.w500,
+                    Expanded(
+                      child: Text(
+                        article.source,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
-                    const Spacer(),
 
                     // Horario simplificado da noticia.
                     Text(
@@ -81,6 +112,14 @@ class NewsCard extends StatelessWidget {
                         color: Colors.grey.shade600,
                       ),
                     ),
+                    if (showSaveButton) ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        tooltip: 'Salvar para ler depois',
+                        icon: const Icon(Icons.bookmark_add_outlined),
+                        onPressed: () => _saveArticle(context),
+                      ),
+                    ],
                   ],
                 ),
               ],

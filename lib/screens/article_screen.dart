@@ -58,15 +58,26 @@ class ArticleScreen extends StatelessWidget {
 
   // Salva a noticia no banco local para ler depois.
   Future<void> _saveArticle(BuildContext context) async {
-    await DatabaseService.instance.saveArticle(article);
+    try {
+      await DatabaseService.instance.saveArticle(article);
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Notícia salva!'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Notícia salva!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível salvar a notícia.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
