@@ -39,17 +39,33 @@ class ArticleScreen extends StatelessWidget {
 
   // Tenta abrir o link da noticia no navegador do dispositivo.
   Future<void> _openLink(BuildContext context, String url) async {
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Esta notícia não possui link para a matéria.'),
+        ),
+      );
+      return;
+    }
+
     final uri = Uri.parse(url);
 
-    if (await canLaunchUrl(uri)) {
-      // LaunchMode.externalApplication abre no navegador, fora do app.
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      // Se nao conseguiu abrir, avisa o usuario com um SnackBar.
+    try {
+      // LaunchMode.externalApplication abre a materia completa no navegador.
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+      if (!opened && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível abrir a matéria completa.'),
+          ),
+        );
+      }
+    } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Nao foi possivel abrir o link.'),
+            content: Text('Não foi possível abrir a matéria completa.'),
           ),
         );
       }
@@ -108,117 +124,135 @@ class ArticleScreen extends StatelessWidget {
       // SingleChildScrollView permite rolar a tela quando o conteudo
       // for maior do que o espaco disponivel.
       body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Imagem da noticia no topo. Se a URL estiver vazia ou der erro,
-            // mostra o placeholder cinza.
-            article.imageUrl.isNotEmpty
-                ? Image.network(
-                    article.imageUrl,
-                    width: double.infinity,
-                    height: 220,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return _buildImagePlaceholder();
-                    },
-                  )
-                : _buildImagePlaceholder(),
+        child: Center(
+          child: ConstrainedBox(
+            // Mantem a leitura confortavel em celulares grandes e tablets.
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Imagem da noticia no topo. Se a URL estiver vazia ou der erro,
+                // mostra o placeholder cinza.
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: article.imageUrl.isNotEmpty
+                      ? Image.network(
+                          article.imageUrl,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return _buildImagePlaceholder();
+                          },
+                        )
+                      : _buildImagePlaceholder(),
+                ),
 
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Titulo da noticia em destaque.
-                  Text(
-                    article.title,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Nome da fonte da noticia.
-                  Row(
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.source, size: 16, color: Colors.grey.shade600),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          article.source,
-                          style: TextStyle(
-                            color: Colors.grey.shade700,
-                            fontWeight: FontWeight.w500,
+                      // Titulo da noticia em destaque.
+                      Text(
+                        article.title,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Nome da fonte da noticia.
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.source,
+                            size: 16,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              article.source,
+                              style: TextStyle(
+                                color: Colors.grey.shade700,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+
+                      // Data e hora de publicacao.
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_today,
+                            size: 16,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _formatDate(article.publishedAt),
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      const Divider(),
+                      const SizedBox(height: 16),
+
+                      // Descricao / resumo da noticia.
+                      // height: 1.6 aumenta o espaco entre linhas para facilitar
+                      // a leitura.
+                      Text(
+                        article.description,
+                        style: const TextStyle(fontSize: 16, height: 1.6),
+                      ),
+                      const SizedBox(height: 32),
+
+                      // Botao principal: abre a materia completa no navegador.
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _openLink(context, article.url),
+                          icon: const Icon(Icons.open_in_browser),
+                          label: const Text('Ler matéria completa'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                Theme.of(context).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            textStyle: const TextStyle(fontSize: 16),
                           ),
                         ),
                       ),
+                      const SizedBox(height: 12),
+
+                      // Botao secundario: salva a noticia no SQLite.
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _saveArticle(context),
+                          icon: const Icon(Icons.bookmark_add_outlined),
+                          label: const Text('Salvar para ler depois'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            textStyle: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
                     ],
                   ),
-                  const SizedBox(height: 6),
-
-                  // Data e hora de publicacao.
-                  Row(
-                    children: [
-                      Icon(Icons.calendar_today,
-                          size: 16, color: Colors.grey.shade600),
-                      const SizedBox(width: 6),
-                      Text(
-                        _formatDate(article.publishedAt),
-                        style: TextStyle(color: Colors.grey.shade600),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  const Divider(),
-                  const SizedBox(height: 16),
-
-                  // Descricao / resumo da noticia.
-                  // height: 1.6 aumenta o espaco entre linhas para facilitar
-                  // a leitura.
-                  Text(
-                    article.description,
-                    style: const TextStyle(fontSize: 16, height: 1.6),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Botao principal: abre a materia completa no navegador.
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _openLink(context, article.url),
-                      icon: const Icon(Icons.open_in_browser),
-                      label: const Text('Ler materia completa'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        textStyle: const TextStyle(fontSize: 16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Botao secundario: salva a noticia no SQLite.
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _saveArticle(context),
-                      icon: const Icon(Icons.bookmark_add_outlined),
-                      label: const Text('Salvar para ler depois'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        textStyle: const TextStyle(fontSize: 16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

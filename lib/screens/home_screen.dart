@@ -18,7 +18,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // Controla se o usuario esta vendo noticias do Brasil ou internacionais.
   bool isInternational = false;
 
-  // Guarda a categoria escolhida nos radio buttons.
+  // Guarda a categoria escolhida nos chips.
   String selectedCategory = 'Geral';
 
   // Controla o texto digitado no campo de busca.
@@ -92,6 +92,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Salva o pais escolhido e recarrega as noticias.
   Future<void> _changeCountry(bool value) async {
+    if (isInternational == value) {
+      return;
+    }
+
     final country = value ? 'us' : 'br';
 
     await _preferencesService.saveCountry(country);
@@ -108,6 +112,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Salva a categoria escolhida e recarrega as noticias.
   Future<void> _changeCategory(String category) async {
+    if (selectedCategory == category) {
+      return;
+    }
+
     await _preferencesService.saveCategory(category);
 
     if (!mounted) {
@@ -136,86 +144,11 @@ class _HomeScreenState extends State<HomeScreen> {
         foregroundColor: Colors.white,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: [
-          // Campo de busca por texto.
-          // Pressionar Enter/Buscar no teclado dispara a busca na API.
-          TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Buscar noticias',
-              prefixIcon: const Icon(Icons.search),
-              // Botao de limpar que aparece quando ha texto no campo.
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _searchController.clear();
-                        _loadNews();
-                      },
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            // Busca ao pressionar a tecla de confirmacao do teclado.
-            onSubmitted: (_) => _loadNews(),
-            // Atualiza a tela so para mostrar/esconder o botao X.
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 16),
-
-          // Switch para alternar entre noticias do Brasil e internacionais.
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Brasil',
-                style: TextStyle(fontSize: 16),
-              ),
-              Switch(
-                value: isInternational,
-                onChanged: _changeCountry,
-              ),
-              const Text(
-                'Internacional',
-                style: TextStyle(fontSize: 16),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Titulo da area de categorias.
-          const Text(
-            'Categoria',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Radio buttons para escolher a categoria da noticia.
-          Column(
-            children: categories.map((category) {
-              return Row(
-                children: [
-                  Radio<String>(
-                    value: category,
-                    groupValue: selectedCategory,
-                    onChanged: (value) {
-                      if (value != null) {
-                        _changeCategory(value);
-                      }
-                    },
-                  ),
-                  Text(category),
-                ],
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 16),
+          // Area compacta de busca e filtros.
+          _buildFilterArea(context),
+          const SizedBox(height: 24),
 
           // Titulo da lista de noticias.
           const Text(
@@ -315,6 +248,134 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // Monta a busca, o seletor de pais e as categorias em uma area mais amigavel.
+  Widget _buildFilterArea(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _searchController,
+          decoration: InputDecoration(
+            hintText: 'Buscar noticias',
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? IconButton(
+                    tooltip: 'Limpar busca',
+                    icon: const Icon(Icons.close),
+                    onPressed: () {
+                      _searchController.clear();
+                      _loadNews();
+                    },
+                  )
+                : IconButton(
+                    tooltip: 'Buscar',
+                    icon: const Icon(Icons.arrow_forward),
+                    onPressed: _loadNews,
+                  ),
+            filled: true,
+            fillColor:
+                colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: colorScheme.outlineVariant),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+            ),
+          ),
+          // Busca ao pressionar a tecla de confirmacao do teclado.
+          onSubmitted: (_) => _loadNews(),
+          // Atualiza a tela so para mostrar/esconder o botao X.
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 16),
+
+        // Botao segmentado substitui o switch e deixa claro qual pais esta ativo.
+        SegmentedButton<bool>(
+          segments: const [
+            ButtonSegment<bool>(
+              value: false,
+              icon: Icon(Icons.flag_outlined),
+              label: Text('Brasil'),
+            ),
+            ButtonSegment<bool>(
+              value: true,
+              icon: Icon(Icons.public),
+              label: Text('Internacional'),
+            ),
+          ],
+          selected: {isInternational},
+          showSelectedIcon: false,
+          onSelectionChanged: (selection) {
+            _changeCountry(selection.first);
+          },
+          style: ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            minimumSize: WidgetStateProperty.all(const Size(0, 44)),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        const Text(
+          'Categoria',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // Chips horizontais economizam espaco e deixam os filtros mais leves.
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: categories.map((category) {
+              final isSelected = selectedCategory == category;
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: Text(category),
+                  selected: isSelected,
+                  showCheckmark: false,
+                  avatar: isSelected
+                      ? Icon(
+                          Icons.check,
+                          size: 18,
+                          color: colorScheme.onPrimary,
+                        )
+                      : null,
+                  selectedColor: colorScheme.primary,
+                  labelStyle: TextStyle(
+                    color: isSelected
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSurface,
+                    fontWeight:
+                        isSelected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                  side: BorderSide(
+                    color: isSelected
+                        ? colorScheme.primary
+                        : colorScheme.outlineVariant,
+                  ),
+                  onSelected: (_) => _changeCategory(category),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
     );
   }
 }
